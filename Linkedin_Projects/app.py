@@ -9,35 +9,14 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from httpx import get
 from parsel import Selector
-from nltk.corpus import words
 from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.corpus import words
 
-# Estilo CSS personalizado
-st.markdown("""
-    <style>
-        .stApp {
-            background-image: linear-gradient(to bottom, #ffffff, #f0f0f5);
-            background-attachment: fixed;
-            font-family: 'Courier New', monospace;
-        }
-        .css-1v3fvcr {
-            background-color: #8e44ad !important;
-        }
-        .block-container {
-            padding-top: 2rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Diretório local acessível no ambiente Streamlit Cloud
-nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
-
-# Faz o download diretamente para essa pasta
-nltk.download("punkt", download_dir=nltk_data_dir)
-nltk.download("words", download_dir=nltk_data_dir)
-
-# Adiciona ao caminho do NLTK para busca
-nltk.data.path.append(nltk_data_dir)
+# ⚠️ Setup seguro para NLTK no Streamlit Cloud
+nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
+nltk.download("punkt", download_dir=nltk_data_path)
+nltk.download("words", download_dir=nltk_data_path)
+nltk.data.path.append(nltk_data_path)
 
 common_words = set(words.words())
 
@@ -48,36 +27,33 @@ def preprocess(text):
 def lexical_difficulty(text):
     tokens = word_tokenize(preprocess(text))
     total_words = len(tokens)
-    rare_words = [word for word in tokens if word not in common_words and word.isalpha()]
-    rare_ratio = len(rare_words) / total_words if total_words > 0 else 0
-    return rare_ratio
+    rare_words = [w for w in tokens if w not in common_words and w.isalpha()]
+    return len(rare_words) / total_words if total_words > 0 else 0
 
 def grammar_complexity(text):
     sentences = sent_tokenize(text)
-    avg_words_per_sentence = sum(len(word_tokenize(sent)) for sent in sentences) / len(sentences) if sentences else 0
-    return avg_words_per_sentence
+    return sum(len(word_tokenize(s)) for s in sentences) / len(sentences) if sentences else 0
 
 def readability_score(text):
     return textstat.flesch_reading_ease(text)
 
 def classify_song(text):
     rare_ratio = lexical_difficulty(text)
-    avg_sentence_len = grammar_complexity(text)
+    avg_sent_len = grammar_complexity(text)
     readability = readability_score(text)
-    if rare_ratio > 0.35 or avg_sentence_len > 20 or readability < 30:
-        level = 'Difícil'
+    if rare_ratio > 0.35 or avg_sent_len > 20 or readability < 30:
+        level = "Difícil"
     elif rare_ratio > 0.2 or readability < 50:
-        level = 'Média'
+        level = "Média"
     else:
-        level = 'Fácil'
-    return level, round(rare_ratio, 2), round(avg_sentence_len, 2), round(readability, 2)
+        level = "Fácil"
+    return level, round(rare_ratio, 2), round(avg_sent_len, 2), round(readability, 2)
 
 def letra(url: str) -> str:
     response = get(url, timeout=20)
     s = Selector(response.text)
     texto = s.css("div#lyrics::text").getall()
-    texto_final = "\n".join(t.strip() for t in texto if t.strip())
-    return texto_final
+    return "\n".join(t.strip() for t in texto if t.strip())
 
 def faixas(url: str) -> list[tuple[str, str]]:
     response = get(url, timeout=20)
@@ -87,69 +63,49 @@ def faixas(url: str) -> list[tuple[str, str]]:
     nomes = [n.strip() for n in nomes if n.strip()]
     return list(zip(nomes, hrefs))
 
-# Interface com Streamlit
-st.title("🎧 Classificador de Dificuldade de Letras de Música em Inglês")
-
-aba = st.sidebar.radio("Escolha a funcionalidade:", ["📥 Extrair letras da web"])
+# STREAMLIT UI
+st.title("🎧 Classificador de Dificuldade de Letras de Música")
 
 if "letras_extraidas" not in st.session_state:
     st.session_state.letras_extraidas = {}
 
-if aba == "📥 Extrair letras da web":
-    st.markdown("### 📡 Extração de letras de um artista do Vagalume")
-    url_artista = st.text_input("Cole a URL da página de músicas do artista (ex: https://www.vagalume.com.br/eminem/)")
+url_artista = st.text_input("Cole a URL do artista no Vagalume (ex: https://www.vagalume.com.br/eminem/)")
 
-    if st.button("🔍 Buscar Letras") and url_artista:
-        url_base = "https://www.vagalume.com.br"
-        musicas = faixas(url_artista)
-        with st.spinner("Extraindo letras..."):
-            for titulo, link in musicas:
-                url_musica = url_base + link
-                conteudo = letra(url_musica)
-                titulo_limpo = re.sub(r'[\\/*?:"<>|]', "", titulo)
-                st.session_state.letras_extraidas[f"{titulo_limpo}.txt"] = conteudo
-            st.success(f"{len(st.session_state.letras_extraidas)} letras extraídas com sucesso!")
+if st.button("🔍 Buscar Letras") and url_artista:
+    url_base = "https://www.vagalume.com.br"
+    musicas = faixas(url_artista)
+    with st.spinner("Extraindo letras..."):
+        for titulo, link in musicas:
+            url_musica = url_base + link
+            conteudo = letra(url_musica)
+            titulo_limpo = re.sub(r'[\\/*?:"<>|]', "", titulo)
+            st.session_state.letras_extraidas[f"{titulo_limpo}.txt"] = conteudo
+        st.success(f"{len(st.session_state.letras_extraidas)} letras extraídas com sucesso!")
 
-    if st.session_state.letras_extraidas:
-        st.markdown("### 🎼 Resultado das Análises das Letras Extraídas")
-        resultados = []
-        textos_concatenados = ""
+if st.session_state.letras_extraidas:
+    resultados = []
+    textos_concatenados = ""
+    for nome, content in st.session_state.letras_extraidas.items():
+        textos_concatenados += " " + content
+        nivel, rare, avg_len, readability = classify_song(content)
+        resultados.append({
+            "Nome da Música": nome,
+            "Dificuldade": nivel,
+            "% Palavras Raras": rare,
+            "Média Palavras/Frase": avg_len,
+            "Readability (Flesch)": readability
+        })
 
-        for nome, content  in st.session_state.letras_extraidas.items():
-            textos_concatenados += " " + content
-            level, rare_ratio, avg_len, readability = classify_song(content)
-            resultados.append({
-                "Nome da Música": nome,
-                "Dificuldade": level,
-                "% Palavras Raras": rare_ratio,
-                "Média Palavras/Frase": avg_len,
-                "Readability (Flesch)": readability
-            })
+    df = pd.DataFrame(resultados)
+    st.dataframe(df)
 
-        df_resultado = pd.DataFrame(resultados)
+    st.download_button("⬇️ Baixar CSV", df.to_csv(index=False).encode("utf-8"), "resultados.csv")
 
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            filtro_nome = st.text_input("🔍 Filtrar por nome da música", key="filtro_web")
-        with col2:
-            filtro_dificuldade = st.selectbox("🎚 Filtrar por dificuldade", options=["Todas", "Fácil", "Média", "Difícil"], key="dificuldade_web")
-
-        df_filtrado = df_resultado.copy()
-        if filtro_nome:
-            df_filtrado = df_filtrado[df_filtrado["Nome da Música"].str.contains(filtro_nome, case=False, na=False)]
-        if filtro_dificuldade != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Dificuldade"] == filtro_dificuldade]
-
-        st.dataframe(df_filtrado, use_container_width=True)
-
-        csv = df_filtrado.to_csv(index=False).encode('utf-8')
-        st.download_button("⬇️ Baixar resultados em CSV", csv, "resultado_musicas.csv", "text/csv")
-
-        st.markdown("### ☁️ Nuvem de Palavras das Letras")
-        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(textos_concatenados)
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.imshow(wordcloud, interpolation='bilinear')
-        ax.axis("off")
-        st.pyplot(fig)
-    else:
-        st.info("Aguardando envio dos arquivos `.txt`.")
+    st.markdown("### ☁️ Nuvem de Palavras")
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(textos_concatenados)
+    fig, ax = plt.subplots()
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis("off")
+    st.pyplot(fig)
+else:
+    st.info("Aguardando letras para análise...")
