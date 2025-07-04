@@ -29,9 +29,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Baixar recursos do NLTK se ainda não estiverem disponíveis
-nltk.download('punkt')
-nltk.download('words')
+# Diretório local acessível no ambiente Streamlit Cloud
+nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
+
+# Faz o download diretamente para essa pasta
+nltk.download("punkt", download_dir=nltk_data_dir)
+nltk.download("words", download_dir=nltk_data_dir)
+
+# Adiciona ao caminho do NLTK para busca
+nltk.data.path.append(nltk_data_dir)
 
 common_words = set(words.words())
 
