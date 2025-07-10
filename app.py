@@ -12,7 +12,7 @@ from parsel import Selector
 from nltk.corpus import words
 from nltk.tokenize import word_tokenize, sent_tokenize
 from collections import Counter
-from wordcloud import STOPWORDS
+from wordcloud import STOPWORDS 
 
 # ⚠️ Setup seguro para NLTK no Streamlit Cloud
 nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
