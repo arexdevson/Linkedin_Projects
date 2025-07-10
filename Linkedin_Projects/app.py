@@ -11,6 +11,8 @@ from httpx import get
 from parsel import Selector
 from nltk.corpus import words
 from nltk.tokenize import word_tokenize, sent_tokenize
+from collections import Counter
+from wordcloud import STOPWORDS
 
 # ⚠️ Setup seguro para NLTK no Streamlit Cloud
 nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
@@ -93,6 +95,25 @@ def faixas(url: str) -> list[tuple[str, str]]:
     hrefs = s.css('a.nameMusic::attr(href)').getall()
     nomes = [n.strip() for n in nomes if n.strip()]
     return list(zip(nomes, hrefs))
+# Função para destacar palavras raras e frequentes
+def destacar_palavras(texto):
+    palavras = re.findall(r'\b\w+\b', texto.lower())
+    contador = Counter(palavras)
+    mais_frequentes = {p for p, _ in contador.most_common(20)}
+
+    def estilizar(p):
+        if p in STOPWORDS:
+            return p
+        if p in mais_frequentes:
+            return f"<span style='color:green'><b>{p}</b></span>"
+        elif p not in common_words:
+            return f"<span style='color:red'><b>{p}</b></span>"
+        else:
+            return p
+
+    palavras_destacadas = [estilizar(p) for p in re.findall(r'\b\w+\b', texto)]
+    texto_final = re.sub(r'\b\w+\b', lambda m: estilizar(m.group(0)), texto)
+    return texto_final
 
 # Interface com Streamlit
 st.title("🎧 Classificador de Dificuldade de Letras de Música em Inglês")
@@ -160,3 +181,23 @@ if aba == "📥 Extrair letras da web":
         st.pyplot(fig)
     else:
         st.info("Aguardando envio dos arquivos `.txt`.")
+
+# Visualização da letra da música selecionada
+st.subheader("🎵 Clique em uma música para ver a letra com destaque")
+
+if 'letras_extraidas' in st.session_state and st.session_state.letras_extraidas:
+    nomes_musicas = list(st.session_state.letras_extraidas.keys())
+    musica_escolhida = st.selectbox("Escolha a música:", nomes_musicas)
+
+    if musica_escolhida:
+        letra = st.session_state.letras_extraidas[musica_escolhida]
+        letra_destacada = destacar_palavras(letra)
+
+        st.markdown(f"""
+        <div style='font-family: monospace; font-size: 15px;'>
+        {letra_destacada}
+        </div>
+        """, unsafe_allow_html=True)
+
+else:
+    st.warning("Nenhuma letra extraída ainda. Busque um artista para começar.")
