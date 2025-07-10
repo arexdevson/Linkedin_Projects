@@ -1,0 +1,8 @@
+streamlit
+nltk
+pandas
+matplotlib
+wordcloud
+httpx
+parsel
+textstat
